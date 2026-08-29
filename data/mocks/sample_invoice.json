@@ -1,0 +1,17 @@
+[
+  {
+    "id": "mock-001",
+    "_comment": "VALID — All fields present, amount > 0, INR currency, correct date format.",
+    "raw_text": "INVOICE\n\nVendor: Bharat Tech Solutions Pvt. Ltd.\n123 MG Road, Bengaluru, Karnataka 560001\nGSTIN: 29AABCT1332L1ZX\n\nBill To: Infosys Limited, Electronics City, Bengaluru 560100\n\nInvoice Number: INV-2024-BLR-0089\nInvoice Date:   2024-07-15\nDue Date:       2024-08-14\n\nDescription                        Qty   Unit Price (INR)   Total (INR)\n-------------------------------------------------------------------\nCloud Infrastructure Consulting     80        3,500.00       2,80,000.00\nDevOps Automation Setup              1       45,000.00         45,000.00\nMonthly SRE Retainer                 1       75,000.00         75,000.00\n-------------------------------------------------------------------\nSubtotal:                                                  4,00,000.00\nGST @ 18%:                                                   72,000.00\nTotal Due:                                                 4,72,000.00\n\nCurrency: INR\nPayment Terms: Net 30\nBank: HDFC Bank | A/C: 5020XXXXXXXX | IFSC: HDFC0001234"
+  },
+  {
+    "id": "mock-002",
+    "_comment": "INVALID — Missing invoice number, total amount is 0. Should fail audit.",
+    "raw_text": "INVOICE\n\nVendor: Speedy Courier Services\n78 Transport Nagar, Pune, Maharashtra 411012\n\nBill To: Amazon India, Fulfillment Center, Pune 411062\n\nInvoice Number: [NOT PROVIDED]\nInvoice Date:   2024-07-20\nDue Date:       2024-08-19\n\nDescription                   Qty   Unit Price (USD)   Total (USD)\n----------------------------------------------------------------\nLast-Mile Delivery Services   500           0.00             0.00\n----------------------------------------------------------------\nSubtotal:                                               0.00\nTax @ 10%:                                              0.00\nTotal Due:                                              0.00\n\nCurrency: USD\nNote: Invoice number was not assigned due to a system error. Please process with PO reference only."
+  },
+  {
+    "id": "mock-003",
+    "_comment": "INVALID — Currency is EUR (non-INR/USD), due date uses non-ISO format (DD/MM/YYYY). Should fail audit.",
+    "raw_text": "RECHNUNG / INVOICE\n\nLieferant / Vendor: Europa Maschinenbau GmbH\nIndustriestrasse 42, 80339 Munich, Germany\nVAT ID: DE 123 456 789\n\nRechnungsempfanger / Bill To: Tata Motors Ltd., Pune, India 411001\n\nRechnungsnummer / Invoice Number: EUR-INV-2024-3301\nRechnungsdatum / Invoice Date:    10/07/2024\nFalligkeitsdatum / Due Date:      10/08/2024\n\nBeschreibung / Description          Menge   Einzelpreis (EUR)   Gesamt (EUR)\n--------------------------------------------------------------------------\nCNC Machining Components (Batch A)     200          125.50        25,100.00\nPrecision Bearings (Set of 50)          10          340.00         3,400.00\nShipping & Handling                      1          850.00           850.00\n--------------------------------------------------------------------------\nZwischensumme / Subtotal:                                        29,350.00\nMwSt / VAT @ 19%:                                                 5,576.50\nGesamtbetrag / Total Due:                                        34,926.50\n\nWahrung / Currency: EUR\nZahlungsbedingungen / Payment Terms: 30 Tage netto"
+  }
+]

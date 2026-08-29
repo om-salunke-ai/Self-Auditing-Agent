@@ -1,0 +1,44 @@
+[
+  {
+    "mock_id": "mock-001",
+    "run_timestamp": "2026-08-28T15:39:17.695352+00:00",
+    "audit_result": "pass",
+    "audit_reason": "All checks passed.",
+    "retry_count": 1,
+    "maker_output": {
+      "vendor_name": "Bharat Tech Solutions Pvt. Ltd.",
+      "invoice_number": "INV-2024-BLR-0089",
+      "total_amount": 472000.0,
+      "due_date": "2024-08-14",
+      "currency": "INR"
+    }
+  },
+  {
+    "mock_id": "mock-002",
+    "run_timestamp": "2026-08-28T15:40:42.777415+00:00",
+    "audit_result": "fail",
+    "audit_reason": "invoice_number is empty or missing. | total_amount must be greater than 0 (got 0.0).",
+    "retry_count": 3,
+    "maker_output": {
+      "vendor_name": "Speedy Courier Services",
+      "invoice_number": "",
+      "total_amount": 0.0,
+      "due_date": "2024-08-19",
+      "currency": "USD"
+    }
+  },
+  {
+    "mock_id": "mock-003",
+    "run_timestamp": "2026-08-28T15:41:25.374363+00:00",
+    "audit_result": "pass",
+    "audit_reason": "All checks passed.",
+    "retry_count": 2,
+    "maker_output": {
+      "vendor_name": "Europa Maschinenbau GmbH",
+      "invoice_number": "EUR-INV-2024-3301",
+      "total_amount": 34926.5,
+      "due_date": "2024-08-10",
+      "currency": "USD"
+    }
+  }
+]

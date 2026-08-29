@@ -1,0 +1,11 @@
+# Core LangGraph / LangChain
+langchain
+langgraph
+langchain-openai
+langgraph-checkpoint-sqlite
+
+# Environment configuration
+python-dotenv
+
+# Testing
+pytest
