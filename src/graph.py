@@ -69,6 +69,10 @@ def _route_after_checker(state: dict) -> str:
         logger.info("Router: audit passed → END")
         return END
 
+    if audit_result == "reject":
+        logger.info("Router: document breaks policy → END (no retry)")
+        return END
+
     if retry_count < MAX_RETRIES:
         logger.info(
             "Router: audit failed, retry %d/%d → maker",
@@ -103,6 +107,7 @@ def build_graph() -> StateGraph:
     graph = StateGraph(AgentState)
 
     # Nodes
+    #  use graph.add_node(...) to plug in your Maker and Checker.
     graph.add_node("maker", run_maker)
     graph.add_node("checker", run_checker)
 
@@ -110,6 +115,7 @@ def build_graph() -> StateGraph:
     graph.set_entry_point("maker")
 
     # Edges
+    # use graph.add_conditional_edges(...) to create the retry loop. If the Checker fails the invoice, LangGraph knows how to route it back to the Maker.
     graph.add_edge("maker", "checker")
 
     graph.add_conditional_edges(

@@ -46,7 +46,9 @@ The last extraction was rejected for the following reason:
   {audit_reason}
 
 Carefully re-read the invoice text and correct exactly the issues described
-above. Do not change fields that were already correct."""
+above. Do not change fields that were already correct.
+Never change a value just to pass a rule: every value must match what the
+invoice text actually says."""
 
 
 # ---------------------------------------------------------------------------

@@ -1,18 +1,3 @@
-"""
-checker.py — Checker node (Agent B) for the LangGraph Maker/Checker workflow.
-
-Responsibilities
-----------------
-* Parse the Maker's JSON output from ``state["maker_output"]``.
-* Run deterministic Python validation rules against the extracted fields.
-* Return ``audit_result`` (``"pass"`` | ``"fail"``) and a human-readable
-  ``audit_reason`` that the Maker can use to correct its output on retry.
-
-Design note: The Checker is intentionally *not* an LLM call.  Validation
-logic that can be expressed as deterministic Python should be — it is faster,
-cheaper, and 100% reproducible.
-"""
-
 import json
 import logging
 import re
@@ -29,10 +14,10 @@ MAX_RETRY_COUNT = 3
 # Loose ISO 8601 date pattern: YYYY-MM-DD
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
+# Other ways an allowed currency may be written on an invoice.
+_CURRENCY_SYMBOLS = {"INR": ("INR", "₹"), "USD": ("USD", "$")}
 
-# ---------------------------------------------------------------------------
-# Individual validators
-# ---------------------------------------------------------------------------
+
 
 def _check_vendor_name(vendor_name: str) -> str | None:
     """Return an error string or None if valid."""
@@ -56,12 +41,40 @@ def _check_total_amount(total_amount: float) -> str | None:
 
 
 def _check_currency(currency: str) -> str | None:
-    if not currency or currency.strip().upper() not in ALLOWED_CURRENCIES:
-        return (
-            f"currency '{currency}' is not allowed. "
-            f"Expected one of: {sorted(ALLOWED_CURRENCIES)}."
-        )
+    """Format only: is it a three-letter code? (Policy is checked separately.)"""
+    if not currency or not re.fullmatch(r"[A-Z]{3}", currency.strip().upper()):
+        return f"currency '{currency}' is not a three-letter ISO 4217 code."
     return None
+
+
+def _check_currency_policy(currency: str) -> str | None:
+    """Business rule the *document* can break. Retrying cannot fix this
+    without inventing data, so it ends the run as "reject"."""
+    if currency.strip().upper() not in ALLOWED_CURRENCIES:
+        return f"currency '{currency}' is not accepted by policy."
+    return None
+
+
+def _check_grounded(data: dict, source_text: str) -> list[str]:
+    """Values the Maker reports must actually appear in the invoice text."""
+    errors: list[str] = []
+    text = source_text.upper()
+
+    currency = (data.get("currency") or "").strip().upper()
+    if currency:
+        ways_to_write = _CURRENCY_SYMBOLS.get(currency, (currency,))
+        if not any(w.upper() in text for w in ways_to_write):
+            errors.append(
+                f"currency '{currency}' does not appear in the invoice text. "
+                "Report the currency exactly as the invoice states it."
+            )
+
+    invoice_number = (data.get("invoice_number") or "").strip()
+    if invoice_number and invoice_number.upper() not in text:
+        errors.append(
+            f"invoice_number '{invoice_number}' does not appear in the invoice text."
+        )
+    return errors
 
 
 def _check_due_date(due_date: str) -> str | None:
@@ -121,7 +134,25 @@ def run_checker(state: dict) -> dict:
         }
 
     # ------------------------------------------------------------------
-    # 2. Run all validators — collect every failure, not just the first
+    # 2a. Grounding — did the Maker invent a value? (retryable)
+    # ------------------------------------------------------------------
+    grounding_errors = _check_grounded(data, state.get("input", ""))
+    if grounding_errors:
+        reason = " | ".join(grounding_errors)
+        logger.info("Audit FAILED (not grounded): %s", reason)
+        return {"audit_result": "fail", "audit_reason": reason}
+
+    # ------------------------------------------------------------------
+    # 2b. Policy — the document itself breaks a business rule (final)
+    # ------------------------------------------------------------------
+    if not _check_currency(data.get("currency")):
+        policy_error = _check_currency_policy(data["currency"])
+        if policy_error:
+            logger.info("Audit REJECTED: %s", policy_error)
+            return {"audit_result": "reject", "audit_reason": policy_error}
+
+    # ------------------------------------------------------------------
+    # 2c. Format validators — collect every failure, not just the first
     # ------------------------------------------------------------------
     errors: list[str] = []
 
