@@ -13,6 +13,9 @@ Topology
       │                                                      │
       ├─ audit_result == "pass"  ─────────────────────► END │
       │                                                      │
+      ├─ audit_result == "reject"  ───────────────────► END │
+      │     (the document itself is the problem — no retry)  │
+      │                                                      │
       ├─ audit_result == "fail" AND retry_count < 3  ───────┘
       │
       └─ audit_result == "fail" AND retry_count >= 3  ──► END
@@ -23,9 +26,11 @@ Persistence
 The graph is compiled with a ``SqliteSaver`` checkpointer so every node
 transition is persisted to ``data/checkpoints.db``.  Pass a unique
 ``thread_id`` in ``RunnableConfig`` to isolate each document's run history.
+Set the ``CHECKPOINT_DB`` environment variable to use another file path.
 """
 
 import logging
+import os
 import sqlite3
 from pathlib import Path
 
@@ -47,7 +52,9 @@ MAX_RETRIES = 3
 # SQLite file lives in data/ relative to the project root.
 # __file__ → src/graph.py → parent = src/ → parent = project root
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
-_CHECKPOINT_DB = _PROJECT_ROOT / "data" / "checkpoints.db"
+# CHECKPOINT_DB lets you keep the database outside OneDrive, whose syncing can
+# lock the file mid-write (BUG-21). Tests also use it to get a throwaway DB.
+_CHECKPOINT_DB = Path(os.environ.get("CHECKPOINT_DB") or _PROJECT_ROOT / "data" / "checkpoints.db")
 
 
 # ---------------------------------------------------------------------------
