@@ -1,6 +1,8 @@
 import json
 import logging
+import math
 import re
+from datetime import date
 
 logger = logging.getLogger(__name__)
 
@@ -9,13 +11,178 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 ALLOWED_CURRENCIES = {"USD", "INR"}
-MAX_RETRY_COUNT = 3
 
-# Loose ISO 8601 date pattern: YYYY-MM-DD
-_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+# ISO 8601 date shape: YYYY-MM-DD. [0-9] instead of \d, because \d also
+# matches other digits such as "२०२४" (BUG-04).
+_DATE_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 
-# Other ways an allowed currency may be written on an invoice.
-_CURRENCY_SYMBOLS = {"INR": ("INR", "₹", "Rs", "₹"), "USD": ("USD", "$")}
+# Ways a currency may be written on an invoice. They are matched as whole
+# words (see _written_in), so "RS" can't match inside "ORDERS" (BUG-02).
+_CURRENCY_SYMBOLS = {
+    "INR": ("INR", "₹", "RS", "RUPEE", "RUPEES"),
+    "USD": ("USD", "US$", "$", "US DOLLAR", "US DOLLARS"),
+    "EUR": ("EUR", "€", "EURO", "EUROS"),
+    "GBP": ("GBP", "£"),
+}
+# When one of these appears, a bare "$" does not prove US dollars.
+_OTHER_DOLLAR_CODES = ("CAD", "AUD", "NZD", "SGD", "HKD")
+# A line that states the currency, e.g. "Currency: INR".
+_CURRENCY_LINE_RE = re.compile(r"\bCURRENCY\s*:")
+
+# Values that mean "the invoice doesn't have this", compared after _squash():
+# "N/A" -> "NA", "[NOT PROVIDED]" -> "NOTPROVIDED", "-" -> "".
+_PLACEHOLDERS = {"", "NA", "NONE", "NULL", "NIL", "TBD", "UNKNOWN",
+                 "NOTPROVIDED", "NOTAVAILABLE", "PENDING"}
+
+# Labelled lines used for grounding. \b stops "SUBTOTAL" counting as a total.
+_TOTAL_LINE_RE = re.compile(r"\b(TOTAL|AMOUNT DUE|BALANCE DUE|AMOUNT PAYABLE)\b")
+_DUE_LINE_RE = re.compile(r"\b(DUE|PAY BY)\b")
+# Lines that name the customer, not the vendor.
+_BUYER_LINE_RE = re.compile(r"\b(BILL(ED)? TO|SHIP(PED)? TO|SOLD TO|CUSTOMER|BUYER)\b")
+
+# A number as printed on an invoice: 472000, 4,72,000.00, 34,926.50, 1.200,00
+_NUMBER_RE = re.compile(r"\d[\d.,]*\d|\d")
+
+# Dates as they may be written on an invoice (the text is uppercased first).
+_MONTHS = ("JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+           "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
+_YMD_RE = re.compile(r"\b([0-9]{4})[-/.]([0-9]{1,2})[-/.]([0-9]{1,2})\b")        # 2024-08-14
+_XXY_RE = re.compile(r"\b([0-9]{1,2})[-/.]([0-9]{1,2})[-/.]([0-9]{4})\b")        # 14/08/2024
+_DAY_MON_RE = re.compile(
+    r"\b([0-9]{1,2})(?:ST|ND|RD|TH)?[\s-]+([A-Z]{3})[A-Z]*\.?[\s,-]+([0-9]{4})\b"  # 14 Aug 2024
+)
+_MON_DAY_RE = re.compile(
+    r"\b([A-Z]{3})[A-Z]*\.?\s+([0-9]{1,2})(?:ST|ND|RD|TH)?,?\s+([0-9]{4})\b"       # Aug 14, 2024
+)
+
+
+# ---------------------------------------------------------------------------
+# Helpers for reading the invoice text
+# ---------------------------------------------------------------------------
+
+def _lines_with(text: str, label_re: re.Pattern) -> str:
+    """Only the lines of `text` that match `label_re` (e.g. the "Total" lines)."""
+    return "\n".join(line for line in text.splitlines() if label_re.search(line))
+
+
+def _written_in(word: str, text: str) -> bool:
+    """Whole-word search in upper-case text: "RS" doesn't match inside
+    "ORDERS", and "$" doesn't match the "$" of "C$" or "A$"."""
+    return re.search(rf"(?<![A-Z]){re.escape(word)}(?![A-Z])", text) is not None
+
+
+def _currency_in_text(currency: str, text: str) -> bool:
+    """Is `currency` what the invoice really states? (BUG-02)"""
+    ways = _CURRENCY_SYMBOLS.get(currency, (currency,))
+    if currency == "USD" and any(_written_in(code, text) for code in _OTHER_DOLLAR_CODES):
+        ways = tuple(w for w in ways if w != "$")  # here "$" may be another dollar
+    # If the invoice has a "Currency:" line, only that line counts, so a stray
+    # "USD" in a note (e.g. an exchange rate) is not enough.
+    where = _lines_with(text, _CURRENCY_LINE_RE) or text
+    return any(_written_in(w, where) for w in ways)
+
+
+def _squash(value: str) -> str:
+    """Uppercase and keep only letters and digits: "Pvt. Ltd." -> "PVTLTD"."""
+    return re.sub(r"[\W_]+", "", value.upper())
+
+
+def _invoice_number_in_text(invoice_number: str, text: str) -> bool:
+    """Is the invoice number printed in the text as a whole code? (BUG-05)
+
+    Separators may differ ("INV 2024 0089", "INV–2024–0089" or a line break
+    all match "INV-2024-0089"), but a piece of a longer code ("INV-2024"
+    inside "INV-2024-BLR-0089") does not count.
+    """
+    pieces = re.findall(r"[^\W_]+", invoice_number.upper())  # the letter/digit parts
+    if not pieces:
+        return False
+    body = r"[\W_]*".join(re.escape(piece) for piece in pieces)
+    # Nothing that continues the code may touch it on either side: no
+    # letter/digit, and no "-X", "/X" or ".X" (any kind of dash).
+    sep = r"[-/.\u2010-\u2015\u2212]"  # "-", "/", "." and Unicode dashes like "–"
+    before = rf"(?<![^\W_])(?<![^\W_]{sep})"
+    after = rf"(?![^\W_])(?!{sep}[^\W_])"
+    return re.search(before + body + after, text) is not None
+
+
+def _is_missing(value) -> bool:
+    """True when the Maker found nothing: None, "", or a placeholder like "N/A"."""
+    return value is None or (isinstance(value, str) and _squash(value) in _PLACEHOLDERS)
+
+
+def _numbers_in(text: str) -> set[float]:
+    """Every number in the text, read the English way (1,200.50) and the
+    European way (1.200,50), so an amount matches in either style."""
+    numbers = set()
+    for raw in _NUMBER_RE.findall(text):
+        for candidate in (raw.replace(",", ""), raw.replace(".", "").replace(",", ".")):
+            try:
+                numbers.add(round(float(candidate), 2))
+            except ValueError:
+                pass  # e.g. "4.72.00000" is not a number in this reading
+    return numbers
+
+
+def _make_date(year, month, day) -> date | None:
+    try:
+        return date(int(year), int(month), int(day))
+    except ValueError:
+        return None  # not a real day, e.g. 30 February
+
+
+def _iso_date(value) -> date | None:
+    """The date in a "YYYY-MM-DD" string, or None if it isn't a real one."""
+    if not isinstance(value, str) or not _DATE_RE.match(value.strip()):
+        return None
+    try:
+        return date.fromisoformat(value.strip())
+    except ValueError:
+        return None
+
+
+def _date_order(text: str) -> tuple[bool, bool]:
+    """Clues for reading dates like 03/04/2024: 25/07/2024 can only be
+    day-first, 07/25/2024 can only be month-first (BUG-04)."""
+    pairs = _XXY_RE.findall(text)
+    return any(int(a) > 12 for a, _, _ in pairs), any(int(b) > 12 for _, b, _ in pairs)
+
+
+def _dates_in(text: str, day_first: bool = False, month_first: bool = False) -> list[set[date]]:
+    """Every date written in the text, as the set of days it could mean:
+    "2024-08-14" -> {14 Aug}; "03/04/2024" -> {3 Apr, 4 Mar} unless a clue
+    says which order the invoice uses."""
+    found = [{_make_date(y, m, d)} for y, m, d in _YMD_RE.findall(text)]
+    for a, b, y in _XXY_RE.findall(text):
+        days = set()
+        if day_first or not month_first:
+            days.add(_make_date(y, b, a))  # a is the day
+        if month_first or not day_first:
+            days.add(_make_date(y, a, b))  # a is the month
+        found.append(days)
+    for d, mon, y in _DAY_MON_RE.findall(text):
+        if mon in _MONTHS:
+            found.append({_make_date(y, _MONTHS.index(mon) + 1, d)})
+    for mon, d, y in _MON_DAY_RE.findall(text):
+        if mon in _MONTHS:
+            found.append({_make_date(y, _MONTHS.index(mon) + 1, d)})
+    return [days - {None} for days in found if days - {None}]
+
+
+def _due_date_readings(text: str) -> list[set[date]]:
+    """Dates on the "Due" line(s); if those lines hold no date, every date in the text."""
+    order = _date_order(text)  # clues may come from any date on the invoice
+    return _dates_in(_lines_with(text, _DUE_LINE_RE), *order) or _dates_in(text, *order)
+
+
+def _due_date_alternatives(due_date, text: str) -> list[date]:
+    """If the due date is only written like 03/04/2024 (3 April or 4 March?)
+    and nothing on the invoice says which, return both possible days (BUG-04)."""
+    due = _iso_date(due_date)
+    matches = [days for days in _due_date_readings(text) if due in days]
+    if matches and all(len(days) > 1 for days in matches):
+        return sorted(matches[0])
+    return []
 
 
 
@@ -29,12 +196,22 @@ def _check_vendor_name(vendor_name: str) -> str | None:
 def _check_invoice_number(invoice_number: str) -> str | None:
     if not invoice_number or not invoice_number.strip():
         return "invoice_number is empty or missing."
+    # "1" or "INVOICE" would match almost any text, so a real invoice number
+    # needs a digit and at least 3 letters/digits (BUG-05).
+    if len(_squash(invoice_number)) < 3 or not re.search(r"[0-9]", invoice_number):
+        return (
+            f"invoice_number '{invoice_number}' is too short or has no digit; "
+            "copy the full invoice number from the text."
+        )
     return None
 
 
 def _check_total_amount(total_amount: float) -> str | None:
     if not isinstance(total_amount, (int, float)):
         return f"total_amount is not a number (got {type(total_amount).__name__})."
+    # NaN and Infinity are floats too, and "nan <= 0" is False (BUG-09).
+    if not math.isfinite(total_amount):
+        return f"total_amount must be a real number (got {total_amount})."
     if total_amount <= 0:
         return f"total_amount must be greater than 0 (got {total_amount})."
     return None
@@ -60,19 +237,49 @@ def _check_grounded(data: dict, source_text: str) -> list[str]:
     errors: list[str] = []
     text = source_text.upper()
 
+    # Missing values (empty / "N/A") are not grounded here; step 2b rejects them.
     currency = (data.get("currency") or "").strip().upper()
-    if currency:
-        ways_to_write = _CURRENCY_SYMBOLS.get(currency, (currency,))
-        if not any(w.upper() in text for w in ways_to_write):
+    if not _is_missing(currency):
+        if not _currency_in_text(currency, text):
             errors.append(
                 f"currency '{currency}' does not appear in the invoice text. "
                 "Report the currency exactly as the invoice states it."
             )
 
     invoice_number = (data.get("invoice_number") or "").strip()
-    if invoice_number and invoice_number.upper() not in text:
+    if not _is_missing(invoice_number) and not _invoice_number_in_text(invoice_number, text):
         errors.append(
             f"invoice_number '{invoice_number}' does not appear in the invoice text."
+        )
+
+    # total_amount, vendor_name and due_date must come from the text too (BUG-01).
+    amount = data.get("total_amount")
+    if isinstance(amount, (int, float)) and amount > 0:
+        # Use the "Total" / "Amount Due" lines when there are any, so a
+        # Subtotal or a line-item price doesn't count as the total.
+        numbers = _numbers_in(_lines_with(text, _TOTAL_LINE_RE)) or _numbers_in(text)
+        if round(amount, 2) not in numbers:
+            errors.append(
+                f"total_amount {amount} is not the total printed on the invoice "
+                "(read the Total / Amount Due line)."
+            )
+
+    vendor = (data.get("vendor_name") or "").strip()
+    if not _is_missing(vendor):
+        name = _squash(vendor)
+        vendor_lines = [line for line in text.splitlines() if name in _squash(line)]
+        if name not in _squash(text):
+            errors.append(f"vendor_name '{vendor}' does not appear in the invoice text.")
+        elif vendor_lines and all(_BUYER_LINE_RE.search(line) for line in vendor_lines):
+            errors.append(
+                f"vendor_name '{vendor}' is the customer (Bill To / Ship To), "
+                "not the vendor who issued the invoice."
+            )
+
+    due = _iso_date(data.get("due_date"))
+    if due and not any(due in days for days in _due_date_readings(text)):
+        errors.append(
+            f"due_date '{data['due_date']}' is not the due date written on the invoice."
         )
     return errors
 
@@ -85,6 +292,9 @@ def _check_due_date(due_date: str) -> str | None:
             f"due_date '{due_date}' is not in ISO 8601 format (YYYY-MM-DD). "
             "Example of a valid date: '2024-08-31'."
         )
+    if _iso_date(due_date) is None:
+        # Right shape, but the day doesn't exist, e.g. 2024-02-30 (BUG-04).
+        return f"due_date '{due_date}' is not a real calendar date."
     return None
 
 
@@ -105,7 +315,7 @@ def run_checker(state: dict) -> dict:
     -------
     dict
         Partial state update:
-        - ``audit_result`` : ``"pass"`` or ``"fail"``
+        - ``audit_result`` : ``"pass"``, ``"fail"`` (retry) or ``"reject"`` (no retry)
         - ``audit_reason`` : Plain-English explanation of the outcome.
     """
     logger.info("Checker node invoked.")
@@ -116,9 +326,12 @@ def run_checker(state: dict) -> dict:
     raw = state.get("maker_output", "")
     if not raw:
         logger.warning("maker_output is empty — failing audit.")
+        # When the LLM call failed, the Maker left the error in audit_reason
+        # (BUG-07); keep it so the audit trail says what went wrong.
         return {
             "audit_result": "fail",
-            "audit_reason": "maker_output is empty; the Maker produced no extraction.",
+            "audit_reason": state.get("audit_reason")
+            or "maker_output is empty; the Maker produced no extraction.",
         }
 
     try:
@@ -150,6 +363,31 @@ def run_checker(state: dict) -> dict:
         if policy_error:
             logger.info("Audit REJECTED: %s", policy_error)
             return {"audit_result": "reject", "audit_reason": policy_error}
+
+    # A field the invoice doesn't have, or a zero/negative total, is a problem
+    # with the document, not a Maker mistake. Retrying would only push the
+    # Maker to invent a value, so a human must review it (BUG-03).
+    problems = [
+        f"{field} is missing from the invoice"
+        for field in ("vendor_name", "invoice_number", "due_date", "currency")
+        if _is_missing(data.get(field))
+    ]
+    amount = data.get("total_amount")
+    if isinstance(amount, (int, float)) and amount <= 0:
+        problems.append(
+            f"total_amount is {amount}; a zero or negative total "
+            "(e.g. a credit note) cannot be paid automatically"
+        )
+    alternatives = _due_date_alternatives(data.get("due_date"), state.get("input", "").upper())
+    if alternatives:
+        problems.append(
+            "due_date is ambiguous on the invoice: it could be "
+            + " or ".join(day.isoformat() for day in alternatives)
+        )
+    if problems:
+        reason = " | ".join(problems) + ". Needs human review."
+        logger.info("Audit REJECTED: %s", reason)
+        return {"audit_result": "reject", "audit_reason": reason}
 
     # ------------------------------------------------------------------
     # 2c. Format validators — collect every failure, not just the first

@@ -1,4 +1,8 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+# Currency symbols the LLM may copy from an invoice, and their ISO codes.
+_SYMBOL_TO_CODE = {"₹": "INR", "RS": "INR", "RS.": "INR",
+                   "$": "USD", "US$": "USD", "€": "EUR", "£": "GBP"}
 
 
 class InvoiceExtraction(BaseModel):
@@ -15,7 +19,8 @@ class InvoiceExtraction(BaseModel):
         description="Unique identifier for the invoice (e.g., 'INV-2024-00042')."
     )
     total_amount: float = Field(
-        description="Total amount due, as a positive numeric value (e.g., 5934.49)."
+        description="Total amount due, as a positive numeric value (e.g., 5934.49).",
+        allow_inf_nan=False,  # "NaN"/"Infinity" would slip past "<= 0" checks (BUG-09)
     )
     due_date: str = Field(
         description="Payment due date in ISO 8601 format: YYYY-MM-DD (e.g., '2024-08-31')."
@@ -23,3 +28,11 @@ class InvoiceExtraction(BaseModel):
     currency: str = Field(
         description="Three-letter ISO 4217 currency code (e.g., 'INR', 'USD')."
     )
+
+    @field_validator("currency")
+    @classmethod
+    def _clean_currency(cls, value: str) -> str:
+        """Store the currency as an upper-case ISO code, so " usd " becomes
+        "USD" and "€" becomes "EUR" before the Checker sees it."""
+        value = value.strip().upper()
+        return _SYMBOL_TO_CODE.get(value, value)
