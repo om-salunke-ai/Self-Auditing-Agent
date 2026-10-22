@@ -12,11 +12,14 @@ class AgentState(TypedDict):
         JSON string of the last ``InvoiceExtraction`` produced by the Maker.
         Empty string on the first invocation.
     audit_result : str
-        ``"pass"`` or ``"fail"`` — set by the Checker node each cycle.
+        ``"pass"``, ``"fail"`` or ``"reject"`` — set by the Checker node each
+        cycle. ``"fail"`` is retried; ``"reject"`` means the document itself is
+        the problem (e.g. not an allowed currency), so the run ends.
         Empty string before the first audit.
     audit_reason : str
         Human-readable explanation from the Checker describing why the
-        extraction passed or failed. Injected into the Maker prompt on retry.
+        extraction passed, failed or was rejected (or the Maker's error if
+        the LLM call failed). Injected into the Maker prompt on retry.
     retry_count : int
         Number of Maker → Checker cycles completed so far.
         Starts at 0 and is incremented by the Maker at the top of each call.
