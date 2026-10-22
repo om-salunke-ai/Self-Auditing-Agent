@@ -1,5 +1,5 @@
 """
-config.py — LLM client configuration for NVIDIA NIM.
+config.py — LLM client configuration: Sarvam first, Groq as the backup.
 
 Loads credentials from the environment and exports a single ``llm``
 instance that all nodes import. This is the only place in the codebase
@@ -7,6 +7,7 @@ where the LLM is instantiated, keeping model/provider changes to one file.
 """
 
 import os
+import warnings
 
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
@@ -19,7 +20,6 @@ sarvam_key = os.environ.get("SARVAM_API_KEY")
 
 
 if not groq_key:
-    import warnings
     warnings.warn(
         "GROQ_API_KEY is not set — Groq LLM will be unavailable. "
         "Get a free key at https://console.groq.com if you need it."
@@ -28,10 +28,9 @@ if not groq_key:
     
 
 if not sarvam_key:
-    import warnings
     warnings.warn(
-        "sarvam_key is not set — sarvam llm will be unavailable. "
-        "Get a free key at https://api.sarvam.ai/v1 if you need it."
+        "SARVAM_API_KEY is not set — Sarvam LLM will be unavailable. "
+        "Get a key from your Sarvam AI dashboard if you need it."
     )
 
 
@@ -61,8 +60,13 @@ if sarvam_key:
     )
 
 
-# Pick the active LLM — prefer sarvam, fall back to groq
-llm = sarvam_llm or groq_llm
+# Pick the active LLM — prefer Sarvam. When both keys are set, a Sarvam call
+# that fails (bad key, no credits, outage, bad output) is automatically
+# repeated on Groq instead of failing the invoice (BUG-14).
+if sarvam_llm and groq_llm:
+    llm = sarvam_llm.with_fallbacks([groq_llm])
+else:
+    llm = sarvam_llm or groq_llm
 
 if llm is None:
     raise EnvironmentError(
