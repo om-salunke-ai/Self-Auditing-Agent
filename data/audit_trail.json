@@ -1,7 +1,9 @@
 [
   {
     "mock_id": "mock-001",
-    "run_timestamp": "2026-08-28T15:39:17.695352+00:00",
+    "run_id": "20261022T073148249410Z",
+    "thread_id": "20261022T073148249410Z-001-mock-001",
+    "run_timestamp": "2026-10-22T07:31:48.925052+00:00",
     "audit_result": "pass",
     "audit_reason": "All checks passed.",
     "retry_count": 1,
@@ -15,10 +17,12 @@
   },
   {
     "mock_id": "mock-002",
-    "run_timestamp": "2026-08-28T15:40:42.777415+00:00",
-    "audit_result": "fail",
-    "audit_reason": "invoice_number is empty or missing. | total_amount must be greater than 0 (got 0.0).",
-    "retry_count": 3,
+    "run_id": "20261022T073148249410Z",
+    "thread_id": "20261022T073148249410Z-002-mock-002",
+    "run_timestamp": "2026-10-22T07:31:49.263090+00:00",
+    "audit_result": "reject",
+    "audit_reason": "invoice_number is missing from the invoice | total_amount is 0.0; a zero or negative total (e.g. a credit note) cannot be paid automatically. Needs human review.",
+    "retry_count": 1,
     "maker_output": {
       "vendor_name": "Speedy Courier Services",
       "invoice_number": "",
@@ -29,16 +33,18 @@
   },
   {
     "mock_id": "mock-003",
-    "run_timestamp": "2026-08-28T15:41:25.374363+00:00",
-    "audit_result": "pass",
-    "audit_reason": "All checks passed.",
-    "retry_count": 2,
+    "run_id": "20261022T073148249410Z",
+    "thread_id": "20261022T073148249410Z-003-mock-003",
+    "run_timestamp": "2026-10-22T07:31:49.560801+00:00",
+    "audit_result": "reject",
+    "audit_reason": "currency 'EUR' is not accepted by policy.",
+    "retry_count": 1,
     "maker_output": {
       "vendor_name": "Europa Maschinenbau GmbH",
       "invoice_number": "EUR-INV-2024-3301",
       "total_amount": 34926.5,
-      "due_date": "2024-08-10",
-      "currency": "USD"
+      "due_date": "2024-10-08",
+      "currency": "EUR"
     }
   }
 ]
