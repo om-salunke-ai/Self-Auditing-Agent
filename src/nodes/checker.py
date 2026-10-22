@@ -15,7 +15,7 @@ MAX_RETRY_COUNT = 3
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 # Other ways an allowed currency may be written on an invoice.
-_CURRENCY_SYMBOLS = {"INR": ("INR", "₹"), "USD": ("USD", "$")}
+_CURRENCY_SYMBOLS = {"INR": ("INR", "₹", "Rs", "₹"), "USD": ("USD", "$")}
 
 
 

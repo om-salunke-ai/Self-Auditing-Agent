@@ -1,10 +1,3 @@
-"""
-state.py — Shared AgentState definition for the LangGraph StateGraph.
-
-Every node receives this dict and returns a partial dict whose keys
-are merged into the running state by LangGraph.
-"""
-
 from typing import TypedDict
 
 

@@ -1,14 +1,3 @@
-"""
-maker.py — Maker node (Agent A) for the LangGraph Maker/Checker workflow.
-
-Responsibilities
-----------------
-* Extract structured invoice data from raw text using an LLM.
-* On retry (when ``state["audit_result"] == "fail"``), inject the Checker's
-  ``audit_reason`` into the prompt so the model knows exactly what to fix.
-* Return a partial state dict that LangGraph merges into the running state.
-"""
-
 import json
 import logging
 

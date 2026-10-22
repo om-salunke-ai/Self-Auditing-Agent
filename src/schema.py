@@ -1,11 +1,3 @@
-"""
-schema.py — Pydantic models for structured LLM output.
-
-This module defines the expected extraction schema for the Maker node.
-The `InvoiceExtraction` model is passed to `llm.with_structured_output()`
-so LangChain enforces type-safe, validated JSON from the LLM response.
-"""
-
 from pydantic import BaseModel, Field
 
 

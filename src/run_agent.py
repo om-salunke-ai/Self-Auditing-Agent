@@ -1,13 +1,5 @@
 """
-run_agent.py — CLI entry point for the Self-Auditing Workflow Agent.
 
-Loads all mock invoices from data/mocks/sample_invoice.json, runs each one
-through the compiled LangGraph app with an isolated thread_id, prints a
-readable summary to the terminal, and exports the full audit trail to
-data/audit_trail.json.
-
-Usage
------
     .venv\Scripts\python.exe -m src.run_agent
 
 """
