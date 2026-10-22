@@ -2,3 +2,8 @@
 .venv/
 __pycache__/
 *.db
+
+# Files the app and pytest create while running
+data/audit_history.jsonl
+data/*.tmp
+.pytest_cache/
