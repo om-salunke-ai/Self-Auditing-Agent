@@ -123,3 +123,22 @@ def test_bug09_nan_and_infinity_fail(value):
 def test_bug17_checker_has_no_second_retry_limit():
     import src.nodes.checker as checker
     assert not hasattr(checker, "MAX_RETRY_COUNT")
+
+
+# --- Each rule below is tested on new invoice text written for the test -----
+
+# Part-paid: only the "Amount Due" line is still owed.
+PART_PAID = ("Harbor Lane Printing\n12 Wharf Road, Halifax\n\nInvoice No: HLP-5521\n"
+             "Due Date: 2025-03-14\nBill To: Oakmont Library\n\n"
+             "Invoice Total        $4,200.00\nPayment received    -$1,200.00\n"
+             "Amount Due           $3,000.00\n\nCurrency: USD\n")
+HARBOR = {"vendor_name": "Harbor Lane Printing", "invoice_number": "HLP-5521",
+          "total_amount": 3000.0, "due_date": "2025-03-14", "currency": "USD"}
+
+
+def test_total_before_a_payment_is_not_the_amount_due():
+    assert audit({**HARBOR, "total_amount": 4200.0}, PART_PAID) == "fail"
+
+
+def test_amount_due_line_gives_the_total():
+    assert audit(HARBOR, PART_PAID) == "pass"

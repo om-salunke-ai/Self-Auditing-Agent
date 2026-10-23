@@ -33,6 +33,9 @@ _PLACEHOLDERS = {"", "NA", "NONE", "NULL", "NIL", "TBD", "UNKNOWN",
 
 # Labelled lines used for grounding. \b stops "SUBTOTAL" counting as a total.
 _TOTAL_LINE_RE = re.compile(r"\b(TOTAL|AMOUNT DUE|BALANCE DUE|AMOUNT PAYABLE)\b")
+# Lines for what is still owed. When an invoice has one, the total must come
+# from it: an "Invoice Total" line may be from before a deposit was paid.
+_OWED_LINE_RE = re.compile(r"\b(AMOUNT DUE|BALANCE DUE|AMOUNT PAYABLE)\b")
 _DUE_LINE_RE = re.compile(r"\b(DUE|PAY BY)\b")
 # Lines that name the customer, not the vendor.
 _BUYER_LINE_RE = re.compile(r"\b(BILL(ED)? TO|SHIP(PED)? TO|SOLD TO|CUSTOMER|BUYER)\b")
@@ -116,6 +119,17 @@ def _numbers_in(text: str) -> set[float]:
             except ValueError:
                 pass  # e.g. "4.72.00000" is not a number in this reading
     return numbers
+
+
+def _printed_totals(text: str) -> set[float]:
+    """Amounts that can be the invoice total, taken from the best lines the
+    invoice has: what is still owed ("Balance Due"), else any "Total" line,
+    else any number in the text."""
+    for where in (_lines_with(text, _OWED_LINE_RE), _lines_with(text, _TOTAL_LINE_RE), text):
+        numbers = _numbers_in(where)
+        if numbers:
+            return numbers
+    return set()
 
 
 def _make_date(year, month, day) -> date | None:
@@ -249,10 +263,9 @@ def _check_grounded(data: dict, source_text: str) -> list[str]:
     # total_amount, vendor_name and due_date must come from the text too (BUG-01).
     amount = data.get("total_amount")
     if isinstance(amount, (int, float)) and amount > 0:
-        # Use the "Total" / "Amount Due" lines when there are any, so a
-        # Subtotal or a line-item price doesn't count as the total.
-        numbers = _numbers_in(_lines_with(text, _TOTAL_LINE_RE)) or _numbers_in(text)
-        if round(amount, 2) not in numbers:
+        # Only the labelled total lines count, so a Subtotal or a line-item
+        # price can't pass as the total.
+        if round(amount, 2) not in _printed_totals(text):
             errors.append(
                 f"total_amount {amount} is not the total printed on the invoice "
                 "(read the Total / Amount Due line)."
