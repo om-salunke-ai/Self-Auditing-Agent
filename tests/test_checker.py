@@ -291,3 +291,12 @@ def test_invoice_that_only_mentions_a_credit_note_still_passes():
                "Total: $900.00\nCurrency: USD\n")
     answer = {**BAYVIEW, "invoice_number": "BF-2301", "total_amount": 900.0}
     assert audit(answer, invoice) == "pass"
+
+
+
+# Indian invoices write ":-" as punctuation, so "Total:-9,450.00" is not negative.
+@pytest.mark.parametrize("total_line", ["Total:-9,450.00", "Grand Total:-Rs. 9,450.00",
+                                        "Grand Total:-₹9,450.00", "Total :- 9,450.00"])
+def test_colon_dash_is_punctuation_not_a_minus(total_line):
+    text = NOTE.replace("Grand Total: Rs. 9,450.00", total_line)
+    assert audit(SAANVI, text) == "pass"

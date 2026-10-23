@@ -76,7 +76,8 @@ _CREDIT_NOTE_RE = re.compile(r"^\W*(TAX\s+)?CREDIT\s+(NOTE|MEMO)\b", re.MULTILIN
 # A number as printed on an invoice: 472000, 4,72,000.00, 34,926.50, 1.200,00.
 # A minus sign stuck to it ("-25,000.00", "-₹12,500.00") makes it negative;
 # a hyphen inside a code or date ("INV-2024", "2024-08-01") does not.
-_NUMBER_RE = re.compile(r"((?<![^\W_])[-\u2212](?:[₹$€£][ \t]*)?)?(\d[\d.,]*\d|\d)")
+# Neither does ":-", which Indian invoices use as punctuation ("Total:-5,000.00").
+_NUMBER_RE = re.compile(r"((?<![^\W_])(?<!:)[-\u2212](?:[₹$€£][ \t]*)?)?(\d[\d.,]*\d|\d)")
 
 _MONTHS = ("JAN", "FEB", "MAR", "APR", "MAY", "JUN",
            "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
