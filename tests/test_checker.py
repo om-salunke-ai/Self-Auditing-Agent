@@ -233,3 +233,23 @@ def test_due_date_printed_under_a_table_header_still_passes():
     table = NO_DUE_YET.replace("Invoice Date: 2025-05-02\nDue Date: Awaiting approval\n",
                                "Invoice Date      Due Date\n2025-05-02        2025-06-01\n")
     assert audit(RIVERA, table) == "pass"
+
+
+# A credit note: its total is printed as a negative amount.
+CREDIT = ("Bayview Furniture\nCredit Note No: BF-CN-118\nDate: 2025-02-10\n"
+          "Refund due by: 2025-03-10\nBill To: Hilltop Cafe\n\n"
+          "Returned chairs (4)    -$560.00\nTotal: -$560.00\nCurrency: USD\n")
+BAYVIEW = {"vendor_name": "Bayview Furniture", "invoice_number": "BF-CN-118",
+           "total_amount": -560.0, "due_date": "2025-03-10", "currency": "USD"}
+
+
+def test_negative_total_does_not_confirm_a_positive_one():
+    assert audit({**BAYVIEW, "total_amount": 560.0}, CREDIT) == "fail"
+
+
+def test_discount_and_spaced_dash_leave_a_normal_total_alone():
+    invoice = ("Bayview Furniture\nInvoice No: BF-2207\nDue Date: 2025-03-10\n"
+               "Bill To: Hilltop Cafe\n\nSubtotal      $1,000.00\nDiscount       -$100.00\n"
+               "Total Due - $900.00\nCurrency: USD\n")
+    answer = {**BAYVIEW, "invoice_number": "BF-2207", "total_amount": 900.0}
+    assert audit(answer, invoice) == "pass"

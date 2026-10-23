@@ -65,8 +65,10 @@ _BUYER_LINE_RE = re.compile(
     r"\b(BILL(ED)? TO|SHIP(PED)? TO|SOLD TO|CUSTOMER|BUYER)\b|^\s*(TO|CLIENT( NAME)?)\s*:"
 )
 
-# A number as printed on an invoice: 472000, 4,72,000.00, 34,926.50, 1.200,00
-_NUMBER_RE = re.compile(r"\d[\d.,]*\d|\d")
+# A number as printed on an invoice: 472000, 4,72,000.00, 34,926.50, 1.200,00.
+# A minus sign stuck to it ("-25,000.00", "-₹12,500.00") makes it negative;
+# a hyphen inside a code or date ("INV-2024", "2024-08-01") does not.
+_NUMBER_RE = re.compile(r"((?<![^\W_])[-\u2212](?:[₹$€£][ \t]*)?)?(\d[\d.,]*\d|\d)")
 
 _MONTHS = ("JAN", "FEB", "MAR", "APR", "MAY", "JUN",
            "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
@@ -157,14 +159,17 @@ def _is_missing(value) -> bool:
 
 def _numbers_in(text: str) -> set[float]:
     """Every number in the text, read the English way (1,200.50) and the
-    European way (1.200,50), so an amount matches in either style."""
+    European way (1.200,50), so an amount matches in either style. A number
+    printed with a minus sign stays negative, so "-12,500.00" on a credit
+    note can't confirm a positive 12,500."""
     numbers = set()
-    for raw in _NUMBER_RE.findall(text):
+    for sign, raw in _NUMBER_RE.findall(text):
         for candidate in (raw.replace(",", ""), raw.replace(".", "").replace(",", ".")):
             try:
-                numbers.add(round(float(candidate), 2))
+                value = round(float(candidate), 2)
             except ValueError:
-                pass  # e.g. "4.72.00000" is not a number in this reading
+                continue  # e.g. "4.72.00000" is not a number in this reading
+            numbers.add(-value if sign else value)
     return numbers
 
 
