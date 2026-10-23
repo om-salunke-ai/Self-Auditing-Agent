@@ -300,3 +300,16 @@ def test_invoice_that_only_mentions_a_credit_note_still_passes():
 def test_colon_dash_is_punctuation_not_a_minus(total_line):
     text = NOTE.replace("Grand Total: Rs. 9,450.00", total_line)
     assert audit(SAANVI, text) == "pass"
+
+
+# A balance from an earlier bill is not this bill's total.
+UTILITY = ("Deccan Gas Services\nBill No: DGS-77120\nDue Date: 2025-04-18\n"
+           "Customer Name: Anil Joshi\n\nPrevious Balance Due: Rs. 1,150.00 (paid, thank you)\n"
+           "Current charges: Rs. 2,340.00\nTotal: Rs. 2,340.00\nCurrency: INR\n")
+DECCAN = {"vendor_name": "Deccan Gas Services", "invoice_number": "DGS-77120",
+          "total_amount": 2340.0, "due_date": "2025-04-18", "currency": "INR"}
+
+
+def test_previous_balance_due_is_not_this_bills_total():
+    assert audit(DECCAN, UTILITY) == "pass"
+    assert audit({**DECCAN, "total_amount": 1150.0}, UTILITY) == "fail"

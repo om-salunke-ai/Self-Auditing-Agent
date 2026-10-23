@@ -47,6 +47,8 @@ _TOTAL_LINE_RE = _label_line_re("TOTAL|AMOUNT DUE|BALANCE DUE|AMOUNT PAYABLE")
 # Lines for what is still owed. When an invoice has one, the total must come
 # from it: an "Invoice Total" line may be from before a deposit was paid.
 _OWED_LINE_RE = _label_line_re("AMOUNT DUE|BALANCE DUE|AMOUNT PAYABLE")
+# A line about an earlier bill, not this one: "Previous Balance Due: 1,150.00".
+_EARLIER_BILL_RE = re.compile(r"^[\W_]*(PREVIOUS|LAST|OPENING)\b")
 _DUE_LINE_RE = re.compile(r"\b(DUE|PAY BY)\b")
 # A due line that gives a value after its label: "Due Date: To be confirmed".
 _DUE_VALUE_RE = re.compile(r"\b(DUE|PAY BY)\b[^:\n]*:[ \t]*[^\W_]")
@@ -67,15 +69,12 @@ _CODE_CAME_BEFORE_RE = re.compile(rf"[0-9][^\W_]*{_SPACED_SEP}$")
 _BUYER_LINE_RE = re.compile(
     r"\b(BILL(ED)? TO|SHIP(PED)? TO|SOLD TO|CUSTOMER|BUYER)\b|^\s*(TO|CLIENT( NAME)?)\s*:"
 )
-# A credit note (money owed TO the customer) is titled "Credit Note" at the
-# start of a line: "CREDIT NOTE", "Tax Credit Note", "Credit Note No: CN-45".
+
 # It must never be paid as a bill, however its amount is written
 # ("-5,000.00", "(5,000.00)" or "5,000.00 CR").
 _CREDIT_NOTE_RE = re.compile(r"^\W*(TAX\s+)?CREDIT\s+(NOTE|MEMO)\b", re.MULTILINE)
 
-# A number as printed on an invoice: 472000, 4,72,000.00, 34,926.50, 1.200,00.
-# A minus sign stuck to it ("-25,000.00", "-₹12,500.00") makes it negative;
-# a hyphen inside a code or date ("INV-2024", "2024-08-01") does not.
+
 # Neither does ":-", which Indian invoices use as punctuation ("Total:-5,000.00").
 _NUMBER_RE = re.compile(r"((?<![^\W_])(?<!:)[-\u2212](?:[₹$€£][ \t]*)?)?(\d[\d.,]*\d|\d)")
 
@@ -425,7 +424,7 @@ def run_checker(state: dict) -> dict:
                 "The Maker must return a valid JSON object."
             ),
         }
-
+        
     # ------------------------------------------------------------------
     # 1b. Document type — a credit note is never paid automatically
     # ------------------------------------------------------------------
@@ -434,7 +433,7 @@ def run_checker(state: dict) -> dict:
                   "not a bill to pay. Needs human review.")
         logger.info("Audit REJECTED: %s", reason)
         return {"audit_result": "reject", "audit_reason": reason}
-
+    
     # ------------------------------------------------------------------
     # 2a. Grounding — did the Maker invent a value? (retryable)
     # ------------------------------------------------------------------
