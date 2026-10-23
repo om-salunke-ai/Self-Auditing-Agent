@@ -215,3 +215,21 @@ def test_note_that_mentions_the_total_is_not_a_total_line():
 
 def test_grand_total_label_line_still_counts():
     assert audit(SAANVI, NOTE) == "pass"
+
+
+# The due line has a value, but it is not a date yet.
+NO_DUE_YET = ("Rivera Glassworks\nInvoice No: RG-3304\nInvoice Date: 2025-05-02\n"
+              "Due Date: Awaiting approval\nBill To: Lakeside Clinic\n\n"
+              "Total: $ 760.00\nCurrency: USD\n")
+RIVERA = {"vendor_name": "Rivera Glassworks", "invoice_number": "RG-3304",
+          "total_amount": 760.0, "due_date": "2025-06-01", "currency": "USD"}
+
+
+def test_invoice_date_is_not_borrowed_when_the_due_date_is_not_set():
+    assert audit({**RIVERA, "due_date": "2025-05-02"}, NO_DUE_YET) == "fail"
+
+
+def test_due_date_printed_under_a_table_header_still_passes():
+    table = NO_DUE_YET.replace("Invoice Date: 2025-05-02\nDue Date: Awaiting approval\n",
+                               "Invoice Date      Due Date\n2025-05-02        2025-06-01\n")
+    assert audit(RIVERA, table) == "pass"

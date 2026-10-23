@@ -45,6 +45,8 @@ _TOTAL_LINE_RE = _label_line_re("TOTAL|AMOUNT DUE|BALANCE DUE|AMOUNT PAYABLE")
 # from it: an "Invoice Total" line may be from before a deposit was paid.
 _OWED_LINE_RE = _label_line_re("AMOUNT DUE|BALANCE DUE|AMOUNT PAYABLE")
 _DUE_LINE_RE = re.compile(r"\b(DUE|PAY BY)\b")
+# A due line that gives a value after its label: "Due Date: To be confirmed".
+_DUE_VALUE_RE = re.compile(r"\b(DUE|PAY BY)\b[^:\n]*:[ \t]*[^\W_]")
 # A line that labels the invoice number: "Invoice No", "Inv. No", "Invoice #",
 # "Bill No", "Credit Note No". PO, challan or consumer numbers have other labels.
 _INVOICE_NO_LINE_RE = re.compile(
@@ -225,7 +227,16 @@ def _dates_in(text: str, day_first: bool = False, month_first: bool = False) -> 
 def _due_date_readings(text: str) -> list[set[date]]:
     """Dates on the "Due" line(s); if those lines hold no date, every date in the text."""
     order = _date_order(text)  # clues may come from any date on the invoice
-    return _dates_in(_lines_with(text, _DUE_LINE_RE), *order) or _dates_in(text, *order)
+    # "Total Due" and "Amount Due" lines are about money, not the due date.
+    due_lines = "\n".join(line for line in text.splitlines()
+                          if _DUE_LINE_RE.search(line) and not _TOTAL_LINE_RE.search(line))
+    dates = _dates_in(due_lines, *order)
+    # A due line whose value is not a date ("Due Date: To be confirmed") means
+    # the invoice has no due date yet: borrowing another date would be wrong.
+    # Only a bare label (value on the next line, as in tables) falls back.
+    if dates or _DUE_VALUE_RE.search(due_lines):
+        return dates
+    return _dates_in(text, *order)
 
 
 def _due_date_alternatives(due_date, text: str) -> list[date]:
