@@ -31,11 +31,19 @@ _CURRENCY_LINE_RE = re.compile(r"\bCURRENCY\s*:")
 _PLACEHOLDERS = {"", "NA", "NONE", "NULL", "NIL", "TBD", "UNKNOWN",
                  "NOTPROVIDED", "NOTAVAILABLE", "PENDING"}
 
+
+def _label_line_re(labels: str) -> re.Pattern:
+    """A line that starts with one of `labels`. One word may come first, as in
+    "Grand Total" or "Gesamtbetrag / Total Due" (but not "Sub Total"), so a
+    sentence that only mentions "total", like an injected note, doesn't count."""
+    return re.compile(rf"^[\W_]*(?!SUB\b)([^\W\d_]+[\s/]*)?\b({labels})\b")
+
+
 # Labelled lines used for grounding. \b stops "SUBTOTAL" counting as a total.
-_TOTAL_LINE_RE = re.compile(r"\b(TOTAL|AMOUNT DUE|BALANCE DUE|AMOUNT PAYABLE)\b")
+_TOTAL_LINE_RE = _label_line_re("TOTAL|AMOUNT DUE|BALANCE DUE|AMOUNT PAYABLE")
 # Lines for what is still owed. When an invoice has one, the total must come
 # from it: an "Invoice Total" line may be from before a deposit was paid.
-_OWED_LINE_RE = re.compile(r"\b(AMOUNT DUE|BALANCE DUE|AMOUNT PAYABLE)\b")
+_OWED_LINE_RE = _label_line_re("AMOUNT DUE|BALANCE DUE|AMOUNT PAYABLE")
 _DUE_LINE_RE = re.compile(r"\b(DUE|PAY BY)\b")
 # A line that labels the invoice number: "Invoice No", "Inv. No", "Invoice #",
 # "Bill No", "Credit Note No". PO, challan or consumer numbers have other labels.
