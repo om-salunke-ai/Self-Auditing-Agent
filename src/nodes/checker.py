@@ -6,24 +6,21 @@ from datetime import date
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Validation constants
-# ---------------------------------------------------------------------------
 
 ALLOWED_CURRENCIES = {"USD", "INR"}
 
 # ISO 8601 date shape: YYYY-MM-DD. [0-9] instead of \d, because \d also
-# matches other digits such as "२०२४" (BUG-04).
+# matches other digits such as "२०२४".
 _DATE_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 
-# Ways a currency may be written on an invoice. They are matched as whole
-# words (see _written_in), so "RS" can't match inside "ORDERS" (BUG-02).
+
 _CURRENCY_SYMBOLS = {
     "INR": ("INR", "₹", "RS", "RUPEE", "RUPEES"),
     "USD": ("USD", "US$", "$", "US DOLLAR", "US DOLLARS"),
     "EUR": ("EUR", "€", "EURO", "EUROS"),
     "GBP": ("GBP", "£"),
 }
+
 # When one of these appears, a bare "$" does not prove US dollars.
 _OTHER_DOLLAR_CODES = ("CAD", "AUD", "NZD", "SGD", "HKD")
 # A line that states the currency, e.g. "Currency: INR".
@@ -43,7 +40,6 @@ _BUYER_LINE_RE = re.compile(r"\b(BILL(ED)? TO|SHIP(PED)? TO|SOLD TO|CUSTOMER|BUY
 # A number as printed on an invoice: 472000, 4,72,000.00, 34,926.50, 1.200,00
 _NUMBER_RE = re.compile(r"\d[\d.,]*\d|\d")
 
-# Dates as they may be written on an invoice (the text is uppercased first).
 _MONTHS = ("JAN", "FEB", "MAR", "APR", "MAY", "JUN",
            "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
 _YMD_RE = re.compile(r"\b([0-9]{4})[-/.]([0-9]{1,2})[-/.]([0-9]{1,2})\b")        # 2024-08-14
@@ -56,9 +52,7 @@ _MON_DAY_RE = re.compile(
 )
 
 
-# ---------------------------------------------------------------------------
 # Helpers for reading the invoice text
-# ---------------------------------------------------------------------------
 
 def _lines_with(text: str, label_re: re.Pattern) -> str:
     """Only the lines of `text` that match `label_re` (e.g. the "Total" lines)."""
@@ -72,7 +66,7 @@ def _written_in(word: str, text: str) -> bool:
 
 
 def _currency_in_text(currency: str, text: str) -> bool:
-    """Is `currency` what the invoice really states? (BUG-02)"""
+    """Is `currency` what the invoice really states? """
     ways = _CURRENCY_SYMBOLS.get(currency, (currency,))
     if currency == "USD" and any(_written_in(code, text) for code in _OTHER_DOLLAR_CODES):
         ways = tuple(w for w in ways if w != "$")  # here "$" may be another dollar
