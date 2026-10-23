@@ -37,6 +37,17 @@ _TOTAL_LINE_RE = re.compile(r"\b(TOTAL|AMOUNT DUE|BALANCE DUE|AMOUNT PAYABLE)\b"
 # from it: an "Invoice Total" line may be from before a deposit was paid.
 _OWED_LINE_RE = re.compile(r"\b(AMOUNT DUE|BALANCE DUE|AMOUNT PAYABLE)\b")
 _DUE_LINE_RE = re.compile(r"\b(DUE|PAY BY)\b")
+# A line that labels the invoice number: "Invoice No", "Inv. No", "Invoice #",
+# "Bill No", "Credit Note No". PO, challan or consumer numbers have other labels.
+_INVOICE_NO_LINE_RE = re.compile(
+    r"\b(INVOICE|INV|BILL|CREDIT NOTE)\b\.?\s*(NO|NUMBER)\b|\b(INVOICE|INV)\s*#"
+)
+# Scans can put spaces around a separator inside a code: "GST-T/ 2024 /  561".
+# A "/" or dash with spaces still joins two parts of the code when the part
+# across it has a digit, so "INV-0089 - Paid" still ends at "0089".
+_SPACED_SEP = r"[ \t]*[-/\u2010-\u2015\u2212][ \t]*"
+_CODE_GOES_ON_RE = re.compile(rf"{_SPACED_SEP}[^\W_]*[0-9]")
+_CODE_CAME_BEFORE_RE = re.compile(rf"[0-9][^\W_]*{_SPACED_SEP}$")
 # Lines that name the customer, not the vendor. "To:" and "Client:" count only
 # at the start of a line and with a colon, so neither "due to" nor a vendor
 # called "To-Do Cleaning" is taken for a buyer label.
@@ -88,8 +99,20 @@ def _squash(value: str) -> str:
     return re.sub(r"[\W_]+", "", value.upper())
 
 
+def _invoice_number_lines(text: str) -> list[tuple[int, int]]:
+    """Start and end positions of the labelled invoice-number lines that hold
+    a digit. A label with no code on it ("Invoice No: (to be assigned)", or a
+    number printed on the next line) is ignored."""
+    spans, start = [], 0
+    for line in text.split("\n"):
+        if _INVOICE_NO_LINE_RE.search(line) and re.search(r"[0-9]", line):
+            spans.append((start, start + len(line)))
+        start += len(line) + 1
+    return spans
+
+
 def _invoice_number_in_text(invoice_number: str, text: str) -> bool:
-    """Is the invoice number printed in the text as a whole code? (BUG-05)
+    """Is the invoice number printed in the text as a whole code?
 
     Separators may differ ("INV 2024 0089", "INV–2024–0089" or a line break
     all match "INV-2024-0089"), but a piece of a longer code ("INV-2024"
@@ -104,7 +127,17 @@ def _invoice_number_in_text(invoice_number: str, text: str) -> bool:
     sep = r"[-/.\u2010-\u2015\u2212]"  # "-", "/", "." and Unicode dashes like "–"
     before = rf"(?<![^\W_])(?<![^\W_]{sep})"
     after = rf"(?![^\W_])(?!{sep}[^\W_])"
-    return re.search(before + body + after, text) is not None
+    # When the invoice has a labelled number line with a code on it, the
+    # number must start on that line: a PO, challan or consumer number printed
+    # elsewhere doesn't count. (It may run on to the next line if wrapped.)
+    labelled = _invoice_number_lines(text)
+    for match in re.finditer(before + body + after, text):
+        if (_CODE_GOES_ON_RE.match(text, match.end())
+                or _CODE_CAME_BEFORE_RE.search(text, 0, match.start())):
+            continue  # only a piece of a longer code that a scan spread out
+        if not labelled or any(start <= match.start() < end for start, end in labelled):
+            return True
+    return False
 
 
 def _is_missing(value) -> bool:

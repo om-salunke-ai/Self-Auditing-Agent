@@ -163,3 +163,39 @@ def test_to_in_a_sentence_or_a_name_is_not_a_buyer_label():
     todo = "To-Do Cleaning Services\n" + PHOTO.replace(
         "Payment due to Meera Iyer Photography (UPI: meera@okbank)", "Thank you!")
     assert audit({**MEERA, "vendor_name": "To-Do Cleaning Services"}, todo) == "pass"
+
+
+# Several reference numbers; only the "Invoice No" line holds the invoice number.
+REFS = ("Coastline Marine Supplies\nInvoice No: CMS-2207\nPO No: PO-58812\n"
+        "Quote Ref: Q-3391\nDue Date: 2025-04-30\nBill To: Seabird Charters\n\n"
+        "Total Due: $ 2,640.00\nCurrency: USD\n")
+COAST = {"vendor_name": "Coastline Marine Supplies", "invoice_number": "CMS-2207",
+         "total_amount": 2640.0, "due_date": "2025-04-30", "currency": "USD"}
+
+
+def test_po_number_is_not_the_invoice_number():
+    assert audit({**COAST, "invoice_number": "PO-58812"}, REFS) == "fail"
+
+
+def test_number_on_the_invoice_no_line_passes():
+    assert audit(COAST, REFS) == "pass"
+    # Also when the number is printed on the line under its label.
+    assert audit(COAST, REFS.replace("Invoice No: CMS-2207", "Invoice No:\nCMS-2207")) == "pass"
+
+
+# A scanned invoice: the scan put spaces inside the invoice number.
+SCANNED = ("TAX  INVOICE\nVendor :  Godavari   Tiles   Depot\n"
+           "Inv. No :  GTD-B/ 2025 /  0093\nDue  Date :  15-03-2025\n"
+           "Bill To :  Sunrise Homes\n\nGrand   Total   Rs   58,400.00\n")
+GODAVARI = {"vendor_name": "Godavari Tiles Depot", "invoice_number": "GTD-B/2025/0093",
+            "total_amount": 58400.0, "due_date": "2025-03-15", "currency": "INR"}
+
+
+def test_invoice_number_cut_short_in_a_scan_fails():
+    assert audit({**GODAVARI, "invoice_number": "GTD-B/2025"}, SCANNED) == "fail"
+
+
+def test_full_invoice_number_in_a_scan_passes():
+    assert audit(GODAVARI, SCANNED) == "pass"
+    # A spaced dash before a word is not part of the code.
+    assert audit(GODAVARI, SCANNED.replace("/  0093", "/  0093 - Paid")) == "pass"
