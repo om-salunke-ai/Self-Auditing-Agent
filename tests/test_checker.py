@@ -253,3 +253,19 @@ def test_discount_and_spaced_dash_leave_a_normal_total_alone():
                "Total Due - $900.00\nCurrency: USD\n")
     answer = {**BAYVIEW, "invoice_number": "BF-2207", "total_amount": 900.0}
     assert audit(answer, invoice) == "pass"
+
+
+# The invoice number isn't issued yet; the vendor's name only starts like that phrase.
+NOT_ISSUED = ("To Be Continued Studios\nInvoice No: Not yet issued\nDue Date: 2025-06-15\n"
+              "Bill To: Peak Coworking\n\nTotal: Rs. 12,600.00\nCurrency: INR\n")
+STUDIO = {"vendor_name": "To Be Continued Studios", "invoice_number": "NC-7781",
+          "total_amount": 12600.0, "due_date": "2025-06-15", "currency": "INR"}
+
+
+def test_not_yet_issued_counts_as_missing_and_is_rejected():
+    assert audit({**STUDIO, "invoice_number": "Not yet issued"}, NOT_ISSUED) == "reject"
+
+
+def test_name_that_starts_like_a_not_yet_phrase_still_passes():
+    issued = NOT_ISSUED.replace("Not yet issued", "NC-7781")
+    assert audit(STUDIO, issued) == "pass"

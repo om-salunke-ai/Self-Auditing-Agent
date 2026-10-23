@@ -28,8 +28,11 @@ _CURRENCY_LINE_RE = re.compile(r"\bCURRENCY\s*:")
 
 # Values that mean "the invoice doesn't have this", compared after _squash():
 # "N/A" -> "NA", "[NOT PROVIDED]" -> "NOTPROVIDED", "-" -> "".
-_PLACEHOLDERS = {"", "NA", "NONE", "NULL", "NIL", "TBD", "UNKNOWN",
+_PLACEHOLDERS = {"", "NA", "NONE", "NULL", "NIL", "TBD", "TBA", "TBC", "UNKNOWN",
                  "NOTPROVIDED", "NOTAVAILABLE", "PENDING"}
+# A value that only says it isn't available yet: "To be confirmed",
+# "(to be assigned)", "Not yet issued", "Yet to be decided".
+_NOT_YET_RE = re.compile(r"\W*(YET\s+TO\s+BE|TO\s+BE|NOT\s+YET)\s+[^\W\d_]+\W*")
 
 
 def _label_line_re(labels: str) -> re.Pattern:
@@ -153,8 +156,11 @@ def _invoice_number_in_text(invoice_number: str, text: str) -> bool:
 
 
 def _is_missing(value) -> bool:
-    """True when the Maker found nothing: None, "", or a placeholder like "N/A"."""
-    return value is None or (isinstance(value, str) and _squash(value) in _PLACEHOLDERS)
+    """True when the Maker found nothing: None, "", a placeholder like "N/A",
+    or a phrase like "To be confirmed" for a value the invoice doesn't have yet."""
+    if not isinstance(value, str):
+        return value is None
+    return _squash(value) in _PLACEHOLDERS or _NOT_YET_RE.fullmatch(value.upper()) is not None
 
 
 def _numbers_in(text: str) -> set[float]:
