@@ -67,6 +67,11 @@ _CODE_CAME_BEFORE_RE = re.compile(rf"[0-9][^\W_]*{_SPACED_SEP}$")
 _BUYER_LINE_RE = re.compile(
     r"\b(BILL(ED)? TO|SHIP(PED)? TO|SOLD TO|CUSTOMER|BUYER)\b|^\s*(TO|CLIENT( NAME)?)\s*:"
 )
+# A credit note (money owed TO the customer) is titled "Credit Note" at the
+# start of a line: "CREDIT NOTE", "Tax Credit Note", "Credit Note No: CN-45".
+# It must never be paid as a bill, however its amount is written
+# ("-5,000.00", "(5,000.00)" or "5,000.00 CR").
+_CREDIT_NOTE_RE = re.compile(r"^\W*(TAX\s+)?CREDIT\s+(NOTE|MEMO)\b", re.MULTILINE)
 
 # A number as printed on an invoice: 472000, 4,72,000.00, 34,926.50, 1.200,00.
 # A minus sign stuck to it ("-25,000.00", "-₹12,500.00") makes it negative;
@@ -419,6 +424,15 @@ def run_checker(state: dict) -> dict:
                 "The Maker must return a valid JSON object."
             ),
         }
+
+    # ------------------------------------------------------------------
+    # 1b. Document type — a credit note is never paid automatically
+    # ------------------------------------------------------------------
+    if _CREDIT_NOTE_RE.search(state.get("input", "").upper()):
+        reason = ("The document is a credit note (money owed to the customer), "
+                  "not a bill to pay. Needs human review.")
+        logger.info("Audit REJECTED: %s", reason)
+        return {"audit_result": "reject", "audit_reason": reason}
 
     # ------------------------------------------------------------------
     # 2a. Grounding — did the Maker invent a value? (retryable)

@@ -244,7 +244,7 @@ BAYVIEW = {"vendor_name": "Bayview Furniture", "invoice_number": "BF-CN-118",
 
 
 def test_negative_total_does_not_confirm_a_positive_one():
-    assert audit({**BAYVIEW, "total_amount": 560.0}, CREDIT) == "fail"
+            assert audit({**BAYVIEW, "total_amount": 560.0}, CREDIT) != "pass"
 
 
 def test_discount_and_spaced_dash_leave_a_normal_total_alone():
@@ -269,3 +269,25 @@ def test_not_yet_issued_counts_as_missing_and_is_rejected():
 def test_name_that_starts_like_a_not_yet_phrase_still_passes():
     issued = NOT_ISSUED.replace("Not yet issued", "NC-7781")
     assert audit(STUDIO, issued) == "pass"
+
+
+
+
+# A credit note is rejected for human review, however its total is written.
+@pytest.mark.parametrize("total_line", ["Total: (560.00)", "Total: 560.00 CR", "Total: -$560.00"])
+def test_credit_note_is_never_paid(total_line):
+    text = CREDIT.replace("Total: -$560.00", total_line)
+    assert audit({**BAYVIEW, "total_amount": 560.0}, text) == "reject"
+
+
+def test_minus_sign_still_checked_on_a_normal_invoice():
+    text = CREDIT.replace("Credit Note No", "Invoice No")
+    assert audit({**BAYVIEW, "total_amount": 560.0}, text) == "fail"
+
+
+def test_invoice_that_only_mentions_a_credit_note_still_passes():
+    invoice = ("Bayview Furniture\nInvoice No: BF-2301\nDue Date: 2025-03-10\n"
+               "Bill To: Hilltop Cafe\nAdjusted against Credit Note No: BF-CN-118\n\n"
+               "Total: $900.00\nCurrency: USD\n")
+    answer = {**BAYVIEW, "invoice_number": "BF-2301", "total_amount": 900.0}
+    assert audit(answer, invoice) == "pass"
