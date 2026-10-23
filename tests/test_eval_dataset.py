@@ -121,8 +121,8 @@ def test_every_generated_bad_answer_is_really_wrong(inv):
 # Measured on 22 Oct 2026: 221 of 231 bad answers caught (10 missed), and
 # 30 of 32 correct answers given the right verdict. When you improve the
 # Checker, lower these numbers so the improvement can't be lost later.
-MAX_MISSED = 10
-MAX_WRONG_VERDICTS = 2
+MAX_MISSED = 1
+MAX_WRONG_VERDICTS = 0
 
 
 def test_checker_score_does_not_get_worse():
