@@ -142,3 +142,24 @@ def test_total_before_a_payment_is_not_the_amount_due():
 
 def test_amount_due_line_gives_the_total():
     assert audit(HARBOR, PART_PAID) == "pass"
+
+
+# Buyer on a "Client:" line; the vendor is only named after "due to".
+PHOTO = ("TAX INVOICE\nInvoice No: MIP-0042\nDue Date: 2025-02-28\n"
+         "Client: Bluefin Hotels Pvt. Ltd.\n\nWedding shoot (2 days)    Rs. 18,000.00\n"
+         "Total: Rs. 18,000.00\nCurrency: INR\n\n"
+         "Payment due to Meera Iyer Photography (UPI: meera@okbank)\n")
+MEERA = {"vendor_name": "Meera Iyer Photography", "invoice_number": "MIP-0042",
+         "total_amount": 18000.0, "due_date": "2025-02-28", "currency": "INR"}
+
+
+def test_customer_on_a_client_line_is_not_the_vendor():
+    assert audit({**MEERA, "vendor_name": "Bluefin Hotels Pvt. Ltd."}, PHOTO) == "fail"
+
+
+def test_to_in_a_sentence_or_a_name_is_not_a_buyer_label():
+    assert audit(MEERA, PHOTO) == "pass"
+    # A vendor whose name starts with the word "To" is still the vendor.
+    todo = "To-Do Cleaning Services\n" + PHOTO.replace(
+        "Payment due to Meera Iyer Photography (UPI: meera@okbank)", "Thank you!")
+    assert audit({**MEERA, "vendor_name": "To-Do Cleaning Services"}, todo) == "pass"

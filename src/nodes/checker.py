@@ -37,8 +37,12 @@ _TOTAL_LINE_RE = re.compile(r"\b(TOTAL|AMOUNT DUE|BALANCE DUE|AMOUNT PAYABLE)\b"
 # from it: an "Invoice Total" line may be from before a deposit was paid.
 _OWED_LINE_RE = re.compile(r"\b(AMOUNT DUE|BALANCE DUE|AMOUNT PAYABLE)\b")
 _DUE_LINE_RE = re.compile(r"\b(DUE|PAY BY)\b")
-# Lines that name the customer, not the vendor.
-_BUYER_LINE_RE = re.compile(r"\b(BILL(ED)? TO|SHIP(PED)? TO|SOLD TO|CUSTOMER|BUYER)\b")
+# Lines that name the customer, not the vendor. "To:" and "Client:" count only
+# at the start of a line and with a colon, so neither "due to" nor a vendor
+# called "To-Do Cleaning" is taken for a buyer label.
+_BUYER_LINE_RE = re.compile(
+    r"\b(BILL(ED)? TO|SHIP(PED)? TO|SOLD TO|CUSTOMER|BUYER)\b|^\s*(TO|CLIENT( NAME)?)\s*:"
+)
 
 # A number as printed on an invoice: 472000, 4,72,000.00, 34,926.50, 1.200,00
 _NUMBER_RE = re.compile(r"\d[\d.,]*\d|\d")
