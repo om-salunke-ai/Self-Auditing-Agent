@@ -82,7 +82,7 @@ _NUMBER_RE = re.compile(r"((?<![^\W_])(?<!:)[-\u2212](?:[₹$€£][ \t]*)?)?(\d
 _MONTHS = ("JAN", "FEB", "MAR", "APR", "MAY", "JUN",
            "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
 _YMD_RE = re.compile(r"\b([0-9]{4})[-/.]([0-9]{1,2})[-/.]([0-9]{1,2})\b")        # 2024-08-14
-_XXY_RE = re.compile(r"\b([0-9]{1,2})[-/.]([0-9]{1,2})[-/.]([0-9]{4})\b")        # 14/08/2024
+_XXY_RE = re.compile(r"\b([0-9]{1,2})[-/.]([0-9]{1,2})[-/.]([0-9]{4}|[0-9]{2})\b")  # 14/08/2024, 14/08/24
 _DAY_MON_RE = re.compile(
     r"\b([0-9]{1,2})(?:ST|ND|RD|TH)?[\s-]+([A-Z]{3})[A-Z]*\.?[\s,-]+([0-9]{4})\b"  # 14 Aug 2024
 )
@@ -199,8 +199,11 @@ def _printed_totals(text: str) -> set[float]:
 
 
 def _make_date(year, month, day) -> date | None:
+    year = int(year)
+    if year < 100:
+        year += 2000  # a 2-digit year on an invoice: "15/10/24" is 2024
     try:
-        return date(int(year), int(month), int(day))
+        return date(year, int(month), int(day))
     except ValueError:
         return None  # not a real day, e.g. 30 February
 

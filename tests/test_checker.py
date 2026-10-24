@@ -326,3 +326,16 @@ def test_amount_due_date_is_a_date_label_not_a_money_line():
     assert audit(INDRAYANI, DUE_DATE_LABEL) == "pass"
     # The year 2025 printed in the date must not pass as the total.
     assert audit({**INDRAYANI, "total_amount": 2025.0}, DUE_DATE_LABEL) == "fail"
+
+
+# A 2-digit year: "15/10/24" means 15 October 2024.
+SHORT_YEAR = ("Pavana Hardware\nInvoice No: PH-3318\nInvoice Date: 01/10/24\n"
+              "Due Date: 15/10/24\nBill To: Green Leaf Cafe\n\nTotal: Rs. 4,560.00\nCurrency: INR\n")
+PAVANA = {"vendor_name": "Pavana Hardware", "invoice_number": "PH-3318",
+          "total_amount": 4560.0, "due_date": "2024-10-15", "currency": "INR"}
+
+
+def test_two_digit_year_dates_are_understood():
+    assert audit(PAVANA, SHORT_YEAR) == "pass"
+    # The invoice date is still not accepted as the due date.
+    assert audit({**PAVANA, "due_date": "2024-10-01"}, SHORT_YEAR) == "fail"
