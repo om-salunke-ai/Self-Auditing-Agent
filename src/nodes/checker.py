@@ -38,8 +38,9 @@ _NOT_YET_RE = re.compile(r"\W*(YET\s+TO\s+BE|TO\s+BE|NOT\s+YET)\s+[^\W\d_]+\W*")
 def _label_line_re(labels: str) -> re.Pattern:
     """A line that starts with one of `labels`. One word may come first, as in
     "Grand Total" or "Gesamtbetrag / Total Due" (but not "Sub Total"), so a
-    sentence that only mentions "total", like an injected note, doesn't count."""
-    return re.compile(rf"^[\W_]*(?!SUB\b)([^\W\d_]+[\s/]*)?\b({labels})\b")
+    sentence that only mentions "total", like an injected note, doesn't count.
+    A date label such as "Amount Due Date: 15/10/2024" doesn't count either."""
+    return re.compile(rf"^[\W_]*(?!SUB\b)([^\W\d_]+[\s/]*)?\b({labels})\b(?!\s*DATE\b)")
 
 
 # Labelled lines used for grounding. \b stops "SUBTOTAL" counting as a total.
@@ -187,8 +188,10 @@ def _numbers_in(text: str) -> set[float]:
 def _printed_totals(text: str) -> set[float]:
     """Amounts that can be the invoice total, taken from the best lines the
     invoice has: what is still owed ("Balance Due"), else any "Total" line,
-    else any number in the text."""
-    for where in (_lines_with(text, _OWED_LINE_RE), _lines_with(text, _TOTAL_LINE_RE), text):
+    else any number in the text. Lines about an earlier bill ("Previous
+    Balance Due") are skipped: they are not this bill's total."""
+    this_bill = "\n".join(line for line in text.splitlines() if not _EARLIER_BILL_RE.search(line))
+    for where in (_lines_with(this_bill, _OWED_LINE_RE), _lines_with(this_bill, _TOTAL_LINE_RE), text):
         numbers = _numbers_in(where)
         if numbers:
             return numbers

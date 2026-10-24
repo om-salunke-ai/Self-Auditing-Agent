@@ -313,3 +313,16 @@ DECCAN = {"vendor_name": "Deccan Gas Services", "invoice_number": "DGS-77120",
 def test_previous_balance_due_is_not_this_bills_total():
     assert audit(DECCAN, UTILITY) == "pass"
     assert audit({**DECCAN, "total_amount": 1150.0}, UTILITY) == "fail"
+
+
+# "Amount Due Date" is a date label, not a line with the amount.
+DUE_DATE_LABEL = ("Indrayani Water Works\nBill No: IWW-40417\nCustomer Name: Rohit Patil\n"
+                  "Amount Due Date: 18/04/2025\nTotal Payable: Rs. 1,280.00\nCurrency: INR\n")
+INDRAYANI = {"vendor_name": "Indrayani Water Works", "invoice_number": "IWW-40417",
+             "total_amount": 1280.0, "due_date": "2025-04-18", "currency": "INR"}
+
+
+def test_amount_due_date_is_a_date_label_not_a_money_line():
+    assert audit(INDRAYANI, DUE_DATE_LABEL) == "pass"
+    # The year 2025 printed in the date must not pass as the total.
+    assert audit({**INDRAYANI, "total_amount": 2025.0}, DUE_DATE_LABEL) == "fail"
