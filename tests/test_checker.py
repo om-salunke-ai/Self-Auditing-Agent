@@ -363,3 +363,16 @@ def test_awaiting_phrase_counts_as_missing_and_is_rejected():
         "Due Date: Awaiting approval", "Due Date: 2025-06-01")
     answer = {**RIVERA, "vendor_name": "Awaiting Dawn Studios", "due_date": "2025-06-01"}
     assert audit(answer, studio) == "pass"
+
+
+# "Customer Care" is the vendor's helpline, not a line naming the customer.
+FOOTER_ONLY = ("[logo]\nInvoice No: KSM-7781\nDue Date: 2025-05-20\nBill To: Kiran Motors\n\n"
+               "Total: Rs. 3,150.00\nCurrency: INR\n\nKrishna Spares Mart Customer Care: 1800 222 333\n")
+KRISHNA = {"vendor_name": "Krishna Spares Mart", "invoice_number": "KSM-7781",
+           "total_amount": 3150.0, "due_date": "2025-05-20", "currency": "INR"}
+
+
+def test_customer_care_line_is_not_a_customer_label():
+    assert audit(KRISHNA, FOOTER_ONLY) == "pass"
+    # The real customer (on the "Bill To" line) is still not accepted as the vendor.
+    assert audit({**KRISHNA, "vendor_name": "Kiran Motors"}, FOOTER_ONLY) == "fail"

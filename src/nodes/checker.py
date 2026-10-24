@@ -68,8 +68,10 @@ _CODE_CAME_BEFORE_RE = re.compile(rf"[0-9][^\W_]*{_SPACED_SEP}$")
 # Lines that name the customer, not the vendor. "To:" and "Client:" count only
 # at the start of a line and with a colon, so neither "due to" nor a vendor
 # called "To-Do Cleaning" is taken for a buyer label.
+# "Customer Care / Support / Service" is the vendor's helpline, not the customer.
 _BUYER_LINE_RE = re.compile(
-    r"\b(BILL(ED)? TO|SHIP(PED)? TO|SOLD TO|CUSTOMER|BUYER)\b|^\s*(TO|CLIENT( NAME)?)\s*:"
+    r"\b(BILL(ED)? TO|SHIP(PED)? TO|SOLD TO|CUSTOMER(?!\s+(CARE|SUPPORT|SERVICES?|HELPLINE)\b)|BUYER)\b"
+    r"|^\s*(TO|CLIENT( NAME)?)\s*:"
 )
 
 # It must never be paid as a bill, however its amount is written
