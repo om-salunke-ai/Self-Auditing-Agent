@@ -32,7 +32,8 @@ _PLACEHOLDERS = {"", "NA", "NONE", "NULL", "NIL", "TBD", "TBA", "TBC", "UNKNOWN"
                  "NOTPROVIDED", "NOTAVAILABLE", "PENDING"}
 # A value that only says it isn't available yet: "To be confirmed",
 # "(to be assigned)", "Not yet issued", "Yet to be decided".
-_NOT_YET_RE = re.compile(r"\W*(YET\s+TO\s+BE|TO\s+BE|NOT\s+YET)\s+[^\W\d_]+\W*")
+# "Awaiting approval" also means the value isn't on the invoice yet.
+_NOT_YET_RE = re.compile(r"\W*(YET\s+TO\s+BE|TO\s+BE|NOT\s+YET|AWAITING)\s+[^\W\d_]+\W*")
 
 
 def _label_line_re(labels: str) -> re.Pattern:

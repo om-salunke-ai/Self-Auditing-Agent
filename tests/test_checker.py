@@ -353,3 +353,13 @@ def test_day_of_month_dates_are_understood():
     assert audit(NASHIK, DAY_OF_MONTH) == "pass"
     # The invoice date is still not accepted as the due date.
     assert audit({**NASHIK, "due_date": "2024-10-01"}, DAY_OF_MONTH) == "fail"
+
+
+# "Awaiting approval" copied as the due date: no due date yet, so reject (no retry).
+def test_awaiting_phrase_counts_as_missing_and_is_rejected():
+    assert audit({**RIVERA, "due_date": "Awaiting approval"}, NO_DUE_YET) == "reject"
+    # A longer name that only starts with "Awaiting" is still a real value.
+    studio = NO_DUE_YET.replace("Rivera Glassworks", "Awaiting Dawn Studios").replace(
+        "Due Date: Awaiting approval", "Due Date: 2025-06-01")
+    answer = {**RIVERA, "vendor_name": "Awaiting Dawn Studios", "due_date": "2025-06-01"}
+    assert audit(answer, studio) == "pass"
