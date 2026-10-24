@@ -249,8 +249,34 @@ def _dates_in(text: str, day_first: bool = False, month_first: bool = False) -> 
     return [days - {None} for days in found if days - {None}]
 
 
+# A due-date heading in a table, e.g. "Bill Date     Due Date", with the dates
+# on the line below it.
+_DUE_HEADING_RE = re.compile(r"\b(DUE\s+DATE|PAY\s+BY|PAYMENT\s+DUE)\b")
+
+
+def _dates_under_due_heading(lines: list[str], i: int, order: tuple[bool, bool]) -> list[set[date]]:
+    """For a table heading on lines[i] ("Bill Date     Due Date"), the dates on
+    the next non-empty line. If one of them starts under the "Due Date" heading
+    (within 4 characters), only that one counts; if the columns don't line up
+    (spacing can shift when a PDF becomes text), any date on that line counts."""
+    heading = _DUE_HEADING_RE.search(lines[i])
+    below = next((line for line in lines[i + 1:] if line.strip()), "")
+    found = []  # (distance from the heading's column, the days that date can mean)
+    for pattern in (_YMD_RE, _XXY_RE, _DAY_MON_RE, _MON_DAY_RE):
+        for match in pattern.finditer(below):
+            for days in _dates_in(match.group(0), *order):
+                found.append((abs(match.start() - heading.start()), days))
+    if not found:
+        return []
+    distance, days = min(found, key=lambda f: f[0])
+    if distance <= 4:
+        return [days]
+    return [days for _, days in found]
+
+
 def _due_date_readings(text: str) -> list[set[date]]:
-    """Dates on the "Due" line(s); if those lines hold no date, every date in the text."""
+    """Dates on the "Due" line(s); in a table, the date under the "Due Date"
+    heading; if neither is found, every date in the text."""
     order = _date_order(text)  # clues may come from any date on the invoice
     # "Total Due" and "Amount Due" lines are about money, not the due date.
     due_lines = "\n".join(line for line in text.splitlines()
@@ -261,6 +287,13 @@ def _due_date_readings(text: str) -> list[set[date]]:
     # Only a bare label (value on the next line, as in tables) falls back.
     if dates or _DUE_VALUE_RE.search(due_lines):
         return dates
+    # A table: a "Due Date" heading with its date on the line below.
+    lines = text.splitlines()
+    under = [days for i, line in enumerate(lines)
+             if _DUE_HEADING_RE.search(line) and not _TOTAL_LINE_RE.search(line)
+             for days in _dates_under_due_heading(lines, i, order)]
+    if under:
+        return under
     return _dates_in(text, *order)
 
 

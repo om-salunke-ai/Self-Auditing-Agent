@@ -376,3 +376,17 @@ def test_customer_care_line_is_not_a_customer_label():
     assert audit(KRISHNA, FOOTER_ONLY) == "pass"
     # The real customer (on the "Bill To" line) is still not accepted as the vendor.
     assert audit({**KRISHNA, "vendor_name": "Kiran Motors"}, FOOTER_ONLY) == "fail"
+
+
+# Dates in a table: the due date is the one under the "Due Date" heading.
+TABLE = ("Konkan Telecom Ltd.\nBill No: KT-88123\nCustomer Name: Priya Nair\n"
+         "Bill Date     Due Date\n01/04/2025    18/04/2025\n"
+         "Total Amount Due: Rs. 799.00\nCurrency: INR\n")
+KONKAN = {"vendor_name": "Konkan Telecom Ltd.", "invoice_number": "KT-88123",
+          "total_amount": 799.0, "due_date": "2025-04-18", "currency": "INR"}
+
+
+def test_due_date_is_read_from_its_table_column():
+    assert audit(KONKAN, TABLE) == "pass"
+    # The bill date, in the other column, is not the due date.
+    assert audit({**KONKAN, "due_date": "2025-04-01"}, TABLE) == "fail"
