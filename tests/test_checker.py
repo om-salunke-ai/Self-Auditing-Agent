@@ -339,3 +339,17 @@ def test_two_digit_year_dates_are_understood():
     assert audit(PAVANA, SHORT_YEAR) == "pass"
     # The invoice date is still not accepted as the due date.
     assert audit({**PAVANA, "due_date": "2024-10-01"}, SHORT_YEAR) == "fail"
+
+
+# "15th of October 2024": the word "of" between the day and the month.
+DAY_OF_MONTH = ("Nashik Print Works\nInvoice No: NPW-2290\nInvoice Date: 1st of October 2024\n"
+                "Due Date: 15th of October 2024\nBill To: Lotus Dental Clinic\n\n"
+                "Total: Rs. 6,300.00\nCurrency: INR\n")
+NASHIK = {"vendor_name": "Nashik Print Works", "invoice_number": "NPW-2290",
+          "total_amount": 6300.0, "due_date": "2024-10-15", "currency": "INR"}
+
+
+def test_day_of_month_dates_are_understood():
+    assert audit(NASHIK, DAY_OF_MONTH) == "pass"
+    # The invoice date is still not accepted as the due date.
+    assert audit({**NASHIK, "due_date": "2024-10-01"}, DAY_OF_MONTH) == "fail"
