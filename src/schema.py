@@ -19,8 +19,8 @@ class InvoiceExtraction(BaseModel):
         description="Unique identifier for the invoice (e.g., 'INV-2024-00042')."
     )
     total_amount: float = Field(
-        description="Total amount due, as a positive numeric value (e.g., 5934.49).",
-        allow_inf_nan=False,  # "NaN"/"Infinity" would slip past "<= 0" checks (BUG-09)
+        description="Total amount due (e.g., 5934.49). Negative for a credit note (e.g., -12500.0).",
+        allow_inf_nan=False,  # "NaN"/"Infinity" would slip past "<= 0" checks 
     )
     due_date: str = Field(
         description="Payment due date in ISO 8601 format: YYYY-MM-DD (e.g., '2024-08-31')."

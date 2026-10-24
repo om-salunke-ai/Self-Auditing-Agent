@@ -94,3 +94,13 @@ def test_bug09_schema_rejects_nan_and_infinity(value):
 ])
 def test_bug16_currency_is_stored_as_an_upper_case_code(written, stored):
     assert InvoiceExtraction(**good(currency=written)).currency == stored
+
+
+# --- A credit note's total is negative, and the instructions must allow it ---
+
+def test_instructions_allow_a_negative_total_for_a_credit_note(fake_llm):
+    assert "credit note" in InvoiceExtraction.model_fields["total_amount"].description
+    fake = fake_llm([good()])
+    run_maker(first_state())
+    assert "negative for a credit note" in fake.calls[0][0].content
+    assert InvoiceExtraction(**good(total_amount=-12500.0)).total_amount == -12500.0

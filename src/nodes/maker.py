@@ -19,7 +19,7 @@ the following fields with exact accuracy:
 
   • vendor_name    — Full legal name of the vendor/supplier
   • invoice_number — Unique invoice identifier (e.g. INV-2024-00042)
-  • total_amount   — Final amount due as a positive float (e.g. 5934.49)
+  • total_amount   — Final amount due (e.g. 5934.49); negative for a credit note (e.g. -12500.0)
   • due_date       — Payment due date strictly in ISO 8601 format: YYYY-MM-DD
   • currency       — Three-letter ISO 4217 currency code (e.g. INR, USD)
 
